@@ -1,0 +1,4 @@
+# 不添加IDE文件
+/.idea
+/__pycache__
+/.explore

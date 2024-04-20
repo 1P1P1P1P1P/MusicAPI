@@ -1,2 +1,3 @@
-# WebWithFastAPI
-A web build with FastAPI
+# MusicAPI
+This is a music api build with FastAPI
+
