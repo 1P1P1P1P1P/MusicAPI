@@ -4,7 +4,7 @@
 from typing import List
 
 from fastapi import APIRouter, Response
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, StreamingResponse
 
 from models.music import Song, SongUrls, SearchedSong
 from api.qqmusic import QQMusicClient
@@ -27,13 +27,12 @@ def qq_music_root(logged_in: bool):
 def login(new: int = 0):
     if new != 0:
         img = client.login()
-        print(img)
-        return Response(content=img, media_type="image/jpg")
+        return StreamingResponse(img)
     if client.logged_in:
         return RedirectResponse(url="/qqmusic?logged_in=True")
     else:
         img = client.login()
-        return Response(content=img, media_type="image/jpg")
+        return StreamingResponse(img)
 
 @router.get("/login/check")
 def login_check():
@@ -45,6 +44,9 @@ def login_check():
 @router.get("/songs/search", response_model=SearchedSong)
 def song_search(query: str, num: int = 1):
     songs = client.search(query, num)
+    print(songs)
+    if songs[0].mid == '':
+        print("可能还未登录")
     results = SearchedSong(**{"songs": songs, "num": len(songs)})
     return results
 
@@ -59,3 +61,4 @@ def song_get(song_mid: str):
     song_mid = song_mid.split(',')
     play_urls = client.get_play_url(song_mid=song_mid)
     return play_urls
+
