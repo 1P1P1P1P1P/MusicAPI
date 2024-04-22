@@ -1,6 +1,7 @@
 # -*- coding = utf-8 -*-
 # @Author : VV1P1n
 # @time : 2024/4/19 : 16:54
+import io
 from typing import List
 
 from fastapi import APIRouter, Response
@@ -27,12 +28,13 @@ def qq_music_root(logged_in: bool):
 def login(new: int = 0):
     if new != 0:
         img = client.login()
-        return StreamingResponse(img)
+        return StreamingResponse(io.BytesIO(img), media_type="image/jpeg")
     if client.logged_in:
         return RedirectResponse(url="/qqmusic?logged_in=True")
     else:
         img = client.login()
-        return StreamingResponse(img)
+        return StreamingResponse(io.BytesIO(img), media_type="image/jpeg")
+
 
 @router.get("/login/check")
 def login_check():
@@ -40,6 +42,7 @@ def login_check():
         return "true"
     else:
         return "false"
+
 
 @router.get("/songs/search", response_model=SearchedSong)
 def song_search(query: str, num: int = 1):
@@ -51,7 +54,7 @@ def song_search(query: str, num: int = 1):
     return results
 
 
-@router.get("/songs/url", response_model=SongUrls)
+@router.get("/songs", response_model=SongUrls)
 def song_get(song_mid: str):
     """
     Get song by song id
@@ -61,4 +64,10 @@ def song_get(song_mid: str):
     song_mid = song_mid.split(',')
     play_urls = client.get_play_url(song_mid=song_mid)
     return play_urls
+
+
+@router.get("/playlist")
+def playlist_get(diss_id: int):
+    playlist = client.get_playlist(diss_id=diss_id)
+    return playlist
 

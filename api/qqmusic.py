@@ -13,10 +13,9 @@ import requests
 import requests.utils
 import numpy as np
 import execjs
-from models.music import Song, SongUrls
+from models.music import Song, SongUrls, PlayList, Tag
 import matplotlib.pyplot as plt
 from api.api_errors import NotLoggedIn
-
 
 with open('api/js/qqmain.js', 'r', encoding='utf-8') as f:
     js = f.read()
@@ -105,14 +104,15 @@ class QQMusicClient:
         except FileNotFoundError:
             print("你需要登录")
 
-    def check(self):
+    def _check_task(self):
         new_loop = asyncio.new_event_loop()
         coroutine = self._check_login_loop()
         self.t = threading.Thread(target=start_loop, args=(new_loop, coroutine,))
 
     def login(self):
         """登录"""
-        self.check()
+        self.logged_in = False
+        self._check_task()
         self.session.cookies.clear()
         img = self._get_login_qr()
         self.t.start()
@@ -137,14 +137,15 @@ class QQMusicClient:
                     self.logged_in = True
                     redirect_url = res_list[2]
                     self._get_all_cookies(redirect_url)
+                    self.uin = self.session.cookies.get('uin', None)
+                    with open("cookie.json", 'w') as f:
+                        json.dump(self.session.cookies.get_dict(), f)
                     break
                 if time.time() - check_start_time > 60:
                     raise TimeoutError()
         except TimeoutError:
             print("超时！请重新尝试！")
             self.logged_in = False
-        with open("cookie.json", 'w') as f:
-            json.dump(self.session.cookies.get_dict(), f)
 
     def _get_login_qr(self) -> bytes:
         """login的辅助函数，用于获得二维码"""
@@ -235,7 +236,7 @@ class QQMusicClient:
             if self.uin is None:
                 raise NotLoggedIn(code=111, msg="没有用户uin, 可能未登录")
         except NotLoggedIn as e:
-            print()
+            print(e)
         except Exception as e:
             error_song = {
                 'id': 0,
@@ -255,7 +256,7 @@ class QQMusicClient:
             "_": str(int(time.time() * 1000)),
             "sign": get_sign(form=form_str)
         }
-        print(f"Searching for query: {query}")
+        # print(f"Searching for query: {query}")
         try:
             res = self.session.post(search_url, params=param, data=form_str.encode('utf-8'))
             all_data = res.json()
@@ -263,31 +264,7 @@ class QQMusicClient:
             if all_data.get('code') == 0:
                 req = all_data.get('req_1')
                 data = req.get('data').get('body').get('song')['list']
-                songs = []
-                for i in range(num):
-                    song = data[i]
-                    song_data = {
-                        'id': song.get('id'),
-                        'mid': song.get('mid'),
-                        'name': song.get('name'),
-                        'desc': song.get('desc'),
-                        'album_mid': song.get('album').get('mid'),
-                        'album_name': song.get('album').get('name'),
-                        'time_public': song.get('time_public')
-                    }
-                    if song_data.get('album_mid') != '':
-                        pic_url = f"https://y.qq.com/music/photo_new/T002R300x300M000{song_data.get('album_mid')}.jpg?max_age=2592000"
-                    else:
-                        pic_url = f"https://y.qq.com/music/photo_new/T062R300x300M000{song_data.get('mid')}.jpg?max_age=2592000"
-                    song_data['pic_url'] = pic_url
-                    if type(data[i].get('singer')) is list:
-                        song_data['singer_mid'] = '|'.join([x.get('mid') for x in data[i].get('singer')])
-                        song_data['singer_name'] = '|'.join([x.get('name') for x in data[i].get('singer')])
-                    else:
-                        song_data['singer_mid'] = data[i].get('singer').get('mid')
-                        song_data['singer_name'] = data[i].get('singer').get('name')
-
-                    songs.append(Song(**song_data))
+                songs = [self._get_song(song) for song in data]
                 print(songs)
                 return songs
             else:
@@ -320,7 +297,72 @@ class QQMusicClient:
             song_urls = SongUrls(**urls_dict)
             return song_urls
         except Exception as e:
-            print("Something went wrong: Care for the Mid and your input info")
+            print("Something went wrong: Care for the Mid and your input info:")
+
+    def get_playlist(self, diss_id: int) -> PlayList:
+        song_collected = 0
+        url = "https://u6.y.qq.com/cgi-bin/musics.fcg"
+        form = self._get_basic_form()
+        req_form = self._get_req_form(req_type='getPlaylist')
+        form.update(req_form)
+        form['req_1']['param']['disstid'] = diss_id
+        playlist = PlayList()
+        while 1:
+            form_str = self._get_playlist_helper(form, song_collected)
+            param = {
+                "_": str(int(time.time() * 1000)),
+                "sign": get_sign(form=form_str)
+            }
+            try:
+                res = self.session.post(url, params=param, data=form_str)
+                data = res.json().get("req_1").get('data')
+                dir_info = data.get("dirinfo")
+                if song_collected == 0:
+                    playlist.diss_id = dir_info.get('id')
+                    playlist.song_num = dir_info.get('songnum')
+                    playlist.desc = dir_info.get('desc')
+                    playlist.pic_url = dir_info.get('picurl')
+                    if type(tags := dir_info.get('tags')) is list:
+                        playlist.tag = [Tag(**t) for t in tags]
+                song_list = data.get("songlist")
+                playlist.song_list.extend([self._get_song(song) for song in song_list])
+                if not song_list:
+                    break
+            except Exception as e:
+                print(e)
+                print("Something went wrong: Care for the playlist id and your input info")
+                break
+            else:
+                song_collected += len(song_list)
+        return playlist
+
+    def _get_song(self, song) -> Song:
+        song_data = {
+            "id": song.get("id"),
+            "mid": song.get("mid"),
+            "name": song.get("name"),
+            "desc": song.get("desc", ""),
+            "album_mid": song.get("album").get("mid"),
+            "album_name": song.get("album").get("name"),
+            "time_public": song.get("time_public"),
+        }
+        if song_data.get('album_mid') != '':
+            pic_url = f"https://y.qq.com/music/photo_new/T002R300x300M000{song_data.get('album_mid')}.jpg?max_age=2592000"
+        else:
+            pic_url = f"https://y.qq.com/music/photo_new/T062R300x300M000{song_data.get('mid')}.jpg?max_age=2592000"
+        song_data['pic_url'] = pic_url
+        if type(song.get('singer')) is list:
+            song_data['singer_mid'] = '|'.join([x.get('mid') for x in song.get('singer')])
+            song_data['singer_name'] = '|'.join([x.get('name') for x in song.get('singer')])
+        else:
+            song_data['singer_mid'] = song.get('singer').get('mid')
+            song_data['singer_name'] = song.get('singer').get('name')
+        return Song(**song_data)
+
+    def _get_playlist_helper(self, form, song_collected: int):
+        form['req_1']['param']['song_begin'] = song_collected
+        form_str = json.dumps(form, separators=(',', ':'))
+        return form_str
 
     def _get_basic_form(self):
         basic_form = {
@@ -338,7 +380,6 @@ class QQMusicClient:
                 "g_tk": g_tk(self.session.cookies.get('qqmusic_key', ""))
             }
         }
-
         return basic_form
 
     def _get_req_form(self, req_type):
@@ -370,6 +411,22 @@ class QQMusicClient:
                         "platform": "20"
                     }
                 }
+            },
+            "getPlaylist": {
+                "req_1": {
+                    "module": "music.srfDissInfo.aiDissInfo",
+                    "method": "uniform_get_Dissinfo",
+                    "param": {
+                        "disstid": 0,
+                        "userinfo": 1,
+                        "tag": 1,
+                        "orderlist": 1,
+                        "song_begin": 0,
+                        "song_num": 10,
+                        "onlysonglist": 0,
+                        "enc_host_uin": ""
+                    }
+                }
             }
         }
         return all_rep_form[req_type]
@@ -396,5 +453,6 @@ class QQMusicClient:
 if __name__ == '__main__':
     client = QQMusicClient()
     # client.login()
-    client.search("游园会")
+    # client.search("游园会")
     # client.get_play_url(song_mid=["003aWhog3a86Ro"])
+    client.get_playlist(diss_id=3256986457)

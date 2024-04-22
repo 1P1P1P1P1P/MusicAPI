@@ -35,3 +35,17 @@ class SearchedSong(BaseModel):
 
 class SongUrls(BaseModel):
     urls: List[str]
+
+
+class Tag(BaseModel):
+    id: int | None = None
+    name: str | None = None
+
+
+class PlayList(BaseModel):
+    diss_id: int = 0
+    song_num: int = 0
+    song_list: List[Song] = []
+    desc: str | None = None
+    pic_url: str | None = None
+    tag: List[Tag] | None = None
