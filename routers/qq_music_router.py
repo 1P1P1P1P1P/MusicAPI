@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse, StreamingResponse
 
 from models.music import Song, SongUrls, SearchedSong, AudioResponse
 from api.qqmusic import QQMusicClient
-from tools import get_audio_response
+from routers.tools import get_audio_response
 
 router = APIRouter(
     prefix="/qqmusic",
