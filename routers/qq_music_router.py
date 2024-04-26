@@ -7,8 +7,9 @@ from typing import List
 from fastapi import APIRouter, Response
 from starlette.responses import RedirectResponse, StreamingResponse
 
-from models.music import Song, SongUrls, SearchedSong
+from models.music import Song, SongUrls, SearchedSong, AudioResponse
 from api.qqmusic import QQMusicClient
+from tools import get_audio_response
 
 router = APIRouter(
     prefix="/qqmusic",
@@ -20,8 +21,7 @@ client = QQMusicClient()
 
 @router.get("/")
 def qq_music_root(logged_in: bool):
-    login_info = {"logged_in": logged_in}
-    return login_info
+    return f"欢迎使用QQ音乐API，当前登录状态：{logged_in}"
 
 
 @router.get("/login")
@@ -44,17 +44,16 @@ def login_check():
         return "false"
 
 
-@router.get("/songs/search", response_model=SearchedSong)
+@router.get("/songs/search", response_model=AudioResponse)
 def song_search(query: str, num: int = 1):
     songs = client.search(query, num)
-    print(songs)
-    if songs[0].mid == '':
-        print("可能还未登录")
-    results = SearchedSong(**{"songs": songs, "num": len(songs)})
-    return results
+    if songs is not None:
+        return get_audio_response(code=0, msg='successes!', data=songs)
+    else:
+        return get_audio_response(code=111, msg='没有登录xd!', data=songs)
 
 
-@router.get("/songs", response_model=SongUrls)
+@router.get("/songs", response_model=AudioResponse)
 def song_get(song_mid: str):
     """
     Get song by song id
@@ -63,11 +62,16 @@ def song_get(song_mid: str):
     """
     song_mid = song_mid.split(',')
     play_urls = client.get_play_url(song_mid=song_mid)
-    return play_urls
+    if play_urls is not None:
+        return get_audio_response(code=0, msg='successes!', data=play_urls)
+    else:
+        return get_audio_response(code=-1, msg='失败!', data=play_urls)
 
 
-@router.get("/playlist")
+@router.get("/playlist", response_model=AudioResponse)
 def playlist_get(diss_id: int):
     playlist = client.get_playlist(diss_id=diss_id)
-    return playlist
-
+    if playlist is not None:
+        return get_audio_response(code=0, msg='successes!', data=playlist)
+    else:
+        return get_audio_response(code=-1, msg='失败!', data=playlist)

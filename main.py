@@ -6,11 +6,12 @@ from fastapi import FastAPI
 import uvicorn
 
 from models.music import SourceName, Song
-from routers import qq_music_router
+from routers import qq_music_router, bilibili_router
 
 app = FastAPI()
 
 app.include_router(qq_music_router.router)
+app.include_router(bilibili_router.router)
 
 
 @app.get("/")

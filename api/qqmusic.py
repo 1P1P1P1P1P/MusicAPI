@@ -7,14 +7,12 @@ import random
 import re
 import threading
 import time
-from io import BytesIO
 from typing import List
 import requests
 import requests.utils
 import numpy as np
 import execjs
-from models.music import Song, SongUrls, PlayList, Tag
-import matplotlib.pyplot as plt
+from models.music import Song, SongUrls, PlayList, Tag, SearchedSong
 from api.api_errors import NotLoggedIn
 
 with open('api/js/qqmain.js', 'r', encoding='utf-8') as f:
@@ -88,7 +86,10 @@ class QQMusicClient:
         self.logged_in = False
         self.ptqr_token = None
         self.uin = None
-        self._get_login_cookies()
+        try:
+            self._get_login_cookies()
+        except Exception as e:
+            print(f"获取cookie失败: {e}")
 
     def _get_login_cookies(self):
         try:
@@ -116,9 +117,6 @@ class QQMusicClient:
         self.session.cookies.clear()
         img = self._get_login_qr()
         self.t.start()
-        # 测试时用于展示二维码
-        # plt.imshow(plt.imread(BytesIO(img)))
-        # plt.show()
         return img
 
     async def _check_login_loop(self):
@@ -224,7 +222,7 @@ class QQMusicClient:
         self.session.post(final_cookie_url, data=final_cookie_form)
         # print(self.session.cookies.get_dict())
 
-    def search(self, query: str, query_type: int = 3, num: int = 1) -> List[Song]:
+    def search(self, query: str, query_type: int = 3, num: int = 1) -> SearchedSong | None:
         """
         搜索部分
         :param num: 查询的返回数量(目前没有适配超过10的数量)
@@ -232,19 +230,9 @@ class QQMusicClient:
         :param query_type: 搜索请求的类型, 默认是搜索音乐
         :return: 返回搜索的内容
         """
-        try:
-            if self.uin is None:
-                raise NotLoggedIn(code=111, msg="没有用户uin, 可能未登录")
-        except NotLoggedIn as e:
-            print(e)
-        except Exception as e:
-            error_song = {
-                'id': 0,
-                'mid': '',
-                'name': '',
-                'desc': '',
-            }
-            return [Song(**error_song)]
+
+        if self.uin is None:
+            return None
         search_url = "https://u6.y.qq.com/cgi-bin/musics.fcg"
         form = self._get_basic_form()
         req_form = self._get_req_form(req_type='search')
@@ -264,17 +252,18 @@ class QQMusicClient:
             if all_data.get('code') == 0:
                 req = all_data.get('req_1')
                 data = req.get('data').get('body').get('song')['list']
-                songs = [self._get_song(song) for song in data]
-                print(songs)
-                return songs
+                songs = [self._get_song(song) for song in data[:num]]
+                return SearchedSong(**{"songs": songs, "num": len(songs)})
             else:
                 raise Exception(f"ERROR CODE: {all_data.get('code')}")
         except requests.exceptions.JSONDecodeError as e:
             print("Wrong json")
         except Exception as e:
             print(e)
+        finally:
+            return None
 
-    def get_play_url(self, song_mid) -> SongUrls:
+    def get_play_url(self, song_mid) -> SongUrls | None:
         url = "https://u6.y.qq.com/cgi-bin/musics.fcg"
         form = self._get_basic_form()
         req_form = self._get_req_form(req_type='getVkey')
@@ -298,8 +287,9 @@ class QQMusicClient:
             return song_urls
         except Exception as e:
             print("Something went wrong: Care for the Mid and your input info:")
+            return None
 
-    def get_playlist(self, diss_id: int) -> PlayList:
+    def get_playlist(self, diss_id: int) -> PlayList | None:
         song_collected = 0
         url = "https://u6.y.qq.com/cgi-bin/musics.fcg"
         form = self._get_basic_form()
@@ -331,12 +321,14 @@ class QQMusicClient:
             except Exception as e:
                 print(e)
                 print("Something went wrong: Care for the playlist id and your input info")
+                playlist = None
                 break
             else:
                 song_collected += len(song_list)
         return playlist
 
-    def _get_song(self, song) -> Song:
+    @staticmethod
+    def _get_song(song) -> Song:
         song_data = {
             "id": song.get("id"),
             "mid": song.get("mid"),

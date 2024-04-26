@@ -13,6 +13,7 @@ class SourceName(str, Enum):
     """
     neteasecloud = "neteasecloud"
     qqmusic = "qqmusic"
+    bilibili = "bilibili"
 
 
 class Song(BaseModel):
@@ -49,3 +50,28 @@ class PlayList(BaseModel):
     desc: str | None = None
     pic_url: str | None = None
     tag: List[Tag] | None = None
+
+
+class AudioBilibili(BaseModel):
+    """
+    bilibili音频
+    """
+    aid: int
+    bvid: str
+    audio_url: str
+    title: str
+    desc: str
+    time_public: str
+    owner_id: str
+    owner_name: str
+    face: str
+    pic_url: str
+
+
+class AudioResponse(BaseModel):
+    """
+    音频响应
+    """
+    code: int
+    msg: str
+    data: AudioBilibili | Song | SearchedSong | SongUrls | PlayList | None = None
