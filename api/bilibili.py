@@ -27,7 +27,7 @@ class BilibiliClient:
         if response.status_code == 200:
             pattern_audio = r'<script>window.__playinfo__=(.*?)</script>'
             audio_data = re.findall(pattern_audio, response.content.decode('utf-8'), re.S)[0]
-            pattern_info = r'<script>window.__INITIAL_STATE__=(.*?);/(function'
+            pattern_info = r'<script>window.__INITIAL_STATE__=(.*?);\(function'
             info_data = re.findall(pattern_info, response.content.decode('utf-8'), re.S)[0]
             info_data = json.loads(info_data)
             audio = {
