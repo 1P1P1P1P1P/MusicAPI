@@ -258,9 +258,9 @@ class QQMusicClient:
                 raise Exception(f"ERROR CODE: {all_data.get('code')}")
         except requests.exceptions.JSONDecodeError as e:
             print("Wrong json")
+            return None
         except Exception as e:
             print(e)
-        finally:
             return None
 
     def get_play_url(self, song_mid) -> SongUrls | None:
