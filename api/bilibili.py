@@ -9,6 +9,8 @@ import asyncio
 import json
 import random
 import re
+import time
+
 import aiohttp
 import requests
 from datetime import datetime
@@ -26,50 +28,35 @@ class BilibiliClient:
         self.session = requests.Session()
         self.cookie_jar = aiohttp.CookieJar(unsafe=True)
 
-    async def get_audio_url(self, bvid: str):
-        audio_list = AudioBilibiliList()
+    async def get_audio(self, bvid: str):
         try:
-            future = await self._try_to_get_audio_url(bvid, timeout=10)
-            if future is None:
-                return None
-            else:
-                first_audio, pages = future
-                audio_list.list.append(first_audio)
-                if pages > 1:
-                    tasks = [self._try_to_get_audio_url(bvid, i) for i in range(2, pages + 1)]
-                    futures = await asyncio.gather(*tasks)
-                    audio_list.list.extend([future[0] for future in futures if future is not None])
-                audio_list.pages = len(audio_list.list)
-                return audio_list
+            audios = await self._get_audio_list(bvid)
+            print(audios)
+            if audios is not None:
+                tasks = [self._get_audio_play_url(audio) for audio in audios.list]
+                futures = await asyncio.gather(*tasks)
+                audios.list = [future for future in futures if future is not None]
+                return audios
         except Exception as e:
             print(e)
             return None
 
-    async def _try_to_get_audio_url(self, bvid: str, p: int = 1, timeout: int = 2):
+    async def _get_audio_list(self, bvid: str):
         url = f"https://www.bilibili.com/video/{bvid}/"
-        param = {
-            "p": p,
-            "vd_source": "a97ce8f6ce42e3ca9a7f2426d0a483f0"
-        }
         async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
-            async with session.get(url, params=param, headers=header) as response:
+            async with session.get(url, headers=header) as response:
                 # 等待响应时间
-                text = await self._wait_for_text(response, timeout)
-                # text = await response.text()
-                if response.status == 200 and text is not None:
+                text = await response.text()
+                if response.status == 200:
                     try:
                         pattern_info = r'<script>window.__INITIAL_STATE__=(.*?);\(function'
                         info_data = re.findall(pattern_info, text, re.S)[0]
-                        pattern_audio = r'<script>window.__playinfo__=(.*?)</script>'
-                        audio_data = re.findall(pattern_audio, text, re.S)[0]
                         info_data = json.loads(info_data)
+                        pages = info_data.get('videoData').get('pages')
                         audio = {
-                            'audio_url': json.loads(audio_data)['data'].get('dash').get('audio')[0].get('base_url'),
                             'aid': info_data.get('aid'),
-                            'bvid': bvid,
-                            'cid': info_data.get('videoData').get('pages')[p - 1].get('cid'),
+                            'bvid': info_data.get('bvid'),
                             'title': info_data.get('videoData').get('title'),
-                            'part': info_data.get('videoData').get('pages')[p - 1].get('part'),
                             'desc': info_data.get('videoData').get('desc'),
                             'time_public': datetime.fromtimestamp(info_data.get('videoData').get('pubdate')).strftime(
                                 '%Y-%m-%d'),
@@ -78,33 +65,66 @@ class BilibiliClient:
                             'face': info_data.get('upData').get('face'),
                             'pic_url': info_data.get('videoData').get('pic')
                         }
-
-                        pages = info_data.get('videoData').get('videos')
-                        return AudioBilibili(**audio), pages
+                        audio_list = self._list_audios(pages=pages, audio_basic=audio)
+                        return audio_list
                     except Exception as e:
-                        print(f"{e}: something wrong in _try_to_get_audio_url")
+                        print(f"{e}: something wrong in _get_audio_list")
                 else:
                     return None
 
-    async def _wait_for_text(self, response, timeout=10):
-        text = await response.text()
-        pattern_audio = r'<script>window.__playinfo__=(.*?)</script>'
-        audio_data = re.findall(pattern_audio, text, re.S)[0]
-        audio_url = json.loads(audio_data)['data'].get('dash').get('audio')[0].get('base_url')
-        # 检查文本内容是否包含预期的文本
-        if "https://xy" in audio_url:
-            return text
-        else:
-            time_2_sleep = random.random()
-            await asyncio.sleep(random.random())
-            timeout -= time_2_sleep
-            if timeout > 0:
-                return await self._wait_for_text(response, timeout=timeout)
-            else:
-                return None
+    def _list_audios(self, pages, audio_basic):
+        """列出暂时没有音频链接的音频"""
+        audios = [self._update_audio(audio_basic, {'cid': page.get('cid'), 'part': page.get('part'), 'audio_url': None})
+                  for page in pages]
+        pages = len(audios)
+        audio_list = {
+            "list": [AudioBilibili(**audio) for audio in audios],
+            "pages": pages
+        }
+        return AudioBilibiliList(**audio_list)
+
+    @staticmethod
+    def _update_audio(audio: dict, new: dict):
+        """更新音频信息"""
+        audio.update(new)
+        return audio
+
+    async def _get_audio_play_url(self, audio: AudioBilibili):
+        aid, bvid, cid = audio.aid, audio.bvid, audio.cid
+        url = "https://api.bilibili.com/x/player/playurl"
+        param = {
+            "avid": aid,
+            "cid": cid,
+            "bvid": bvid,
+            "qn": 80,
+            "fnver": 0,
+            "fnval": 4048,
+            "fourk": 1,
+            "gaia_source": "",
+            "from_client": "BROWSER",
+            "need_fragment": "false",
+            "is_main_page": "true",
+            "isGaiaAvoided": "true",
+            "voice_balance": 1,
+            "web_location": "1315873",
+            "session": "d5413e188ff2be3b887678cf8d208b91",
+            "w_rid": "120f1404c2f18eaab0ecd7bd1c859748",
+            "wts": int(time.time())
+        }
+        async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
+            async with session.get(url, params=param, headers=header) as response:
+                # await asyncio.sleep(3)
+                try:
+                    data = await response.json()
+                    audio_url = data.get('data').get('dash').get('audio')[0].get('baseUrl')
+                    audio.audio_url = audio_url
+                    return audio
+                except Exception as e:
+                    print(f"{e}: Something wrong with getting play urls")
+                    return None
 
 
 if __name__ == '__main__':
     client = BilibiliClient()
-    print(client.get_audio_url("BV18m411271p"))
+    print(client.get_audio("BV18m411271p"))
     # print(client.get_audio_url("BV1SA41157Nt"))

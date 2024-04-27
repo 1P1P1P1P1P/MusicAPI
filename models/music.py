@@ -59,7 +59,7 @@ class AudioBilibili(BaseModel):
     aid: int
     cid: int
     bvid: str
-    audio_url: str
+    audio_url: str | None
     title: str
     part: str
     desc: str

@@ -17,8 +17,8 @@ client = BilibiliClient()
 
 
 @router.get("/audio", response_model=AudioResponse)
-async def song_search(bvid: str):
-    bilibili_audio_list: AudioBilibiliList | None = await client.get_audio_url(bvid)
+async def audio(bvid: str):
+    bilibili_audio_list: AudioBilibiliList | None = await client.get_audio(bvid)
     if bilibili_audio_list is not None:
         return get_audio_response(code=0, msg='成功!', data=bilibili_audio_list)
     else:
