@@ -29,19 +29,23 @@ class BilibiliClient:
     async def get_audio_url(self, bvid: str):
         audio_list = AudioBilibiliList()
         try:
-            first_audio, pages = await self._try_to_get_audio_url(bvid)
-            audio_list.list.append(first_audio)
-            if pages > 1:
-                tasks = [self._try_to_get_audio_url(bvid, i) for i in range(2, pages + 1)]
-                futures = await asyncio.gather(*tasks)
-                audio_list.list.extend([future[0] for future in futures if future is not None])
-            audio_list.pages = len(audio_list.list)
-            return audio_list
+            future = await self._try_to_get_audio_url(bvid, timeout=10)
+            if future is None:
+                return None
+            else:
+                first_audio, pages = future
+                audio_list.list.append(first_audio)
+                if pages > 1:
+                    tasks = [self._try_to_get_audio_url(bvid, i) for i in range(2, pages + 1)]
+                    futures = await asyncio.gather(*tasks)
+                    audio_list.list.extend([future[0] for future in futures if future is not None])
+                audio_list.pages = len(audio_list.list)
+                return audio_list
         except Exception as e:
             print(e)
             return None
 
-    async def _try_to_get_audio_url(self, bvid: str, p: int = 1):
+    async def _try_to_get_audio_url(self, bvid: str, p: int = 1, timeout: int = 2):
         url = f"https://www.bilibili.com/video/{bvid}/"
         param = {
             "p": p,
@@ -50,7 +54,7 @@ class BilibiliClient:
         async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
             async with session.get(url, params=param, headers=header) as response:
                 # 等待响应时间
-                text = await self._wait_for_text(response, 2)
+                text = await self._wait_for_text(response, timeout)
                 # text = await response.text()
                 if response.status == 200 and text is not None:
                     try:
