@@ -31,7 +31,6 @@ class BilibiliClient:
     async def get_audio(self, bvid: str):
         try:
             audios = await self._get_audio_list(bvid)
-            print(audios)
             if audios is not None:
                 tasks = [self._get_audio_play_url(audio) for audio in audios.list]
                 futures = await asyncio.gather(*tasks)
