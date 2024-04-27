@@ -7,6 +7,7 @@ bilibili音频获取模块
 """
 import asyncio
 import json
+import random
 import re
 import aiohttp
 import requests
@@ -47,6 +48,8 @@ class BilibiliClient:
         }
         async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
             async with session.get(url, params=param, headers=header) as response:
+                # 等待响应时间
+                await asyncio.sleep(2)
                 text = await response.text()
                 if response.status == 200:
                     try:
