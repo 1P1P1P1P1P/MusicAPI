@@ -30,12 +30,12 @@ class BilibiliClient:
         audio_list = AudioBilibiliList()
         try:
             first_audio, pages = await self._try_to_get_audio_url(bvid)
-            audio_list.pages = pages
             audio_list.list.append(first_audio)
             if pages > 1:
                 tasks = [self._try_to_get_audio_url(bvid, i) for i in range(2, pages + 1)]
                 futures = await asyncio.gather(*tasks)
-                audio_list.list.extend([future[0] for future in futures])
+                audio_list.list.extend([future[0] for future in futures if future is not None])
+            audio_list.pages = len(audio_list.list)
             return audio_list
         except Exception as e:
             print(e)
@@ -50,9 +50,9 @@ class BilibiliClient:
         async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
             async with session.get(url, params=param, headers=header) as response:
                 # 等待响应时间
-                await self._wait_for_text(response, 10)
-                text = await response.text()
-                if response.status == 200:
+                text = await self._wait_for_text(response, 2)
+                # text = await response.text()
+                if response.status == 200 and text is not None:
                     try:
                         pattern_info = r'<script>window.__INITIAL_STATE__=(.*?);\(function'
                         info_data = re.findall(pattern_info, text, re.S)[0]
@@ -89,20 +89,18 @@ class BilibiliClient:
         audio_url = json.loads(audio_data)['data'].get('dash').get('audio')[0].get('base_url')
         # 检查文本内容是否包含预期的文本
         if "https://xy" in audio_url:
-            return
+            return text
         else:
             time_2_sleep = random.random()
             await asyncio.sleep(random.random())
             timeout -= time_2_sleep
             if timeout > 0:
-                await self._wait_for_text(response, timeout=timeout)
+                return await self._wait_for_text(response, timeout=timeout)
             else:
-                raise TimeoutError("Expected text not found within specified timeout.")
+                return None
 
 
 if __name__ == '__main__':
     client = BilibiliClient()
     print(client.get_audio_url("BV18m411271p"))
     # print(client.get_audio_url("BV1SA41157Nt"))
-    # https://xy111x21x155x92xy.mcdn.bilivideo.cn:4483/upgcxcode/74/16/157261674/157261674-1-30280.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1714197103&gen=playurlv2&os=mcdn&oi=1863459470&trid=00002dea348a23e54e00b2eee6fd6c2a9403u&mid=0&platform=pc&upsig=1d0a35cd0f76b55004f66faf52ed82c0&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&mcdnid=16000546&bvc=vod&nettype=0&orderid=0,3&buvid=BBA99D5B-0FED-80A6-776D-4CA4622A311903462infoc&build=0&f=u_0_0&agrr=0&bw=16572&logo=A0008000
-    # https://xy111x21x155x92xy.mcdn.bilivideo.cn:4483/upgcxcode/74/16/157261674/157261674-1-30280.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1714197172&gen=playurlv2&os=mcdn&oi=1863459527&trid=0000fb53d002ea9c4d65aabd93905462898eu&mid=0&platform=pc&upsig=4bd11a820bb2992e54bb4f856745c0cd&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&mcdnid=16000546&bvc=vod&nettype=0&orderid=0,3&buvid=BBA99D5B-0FED-80A6-776D-4CA4622A311903462infoc&build=0&f=u_0_0&agrr=0&bw=16572&logo=A0008000
