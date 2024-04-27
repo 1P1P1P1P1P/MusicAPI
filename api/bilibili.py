@@ -12,6 +12,7 @@ import re
 import aiohttp
 import requests
 from datetime import datetime
+
 from models.music import AudioBilibili, AudioBilibiliList
 
 header = {
@@ -49,7 +50,7 @@ class BilibiliClient:
         async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
             async with session.get(url, params=param, headers=header) as response:
                 # 等待响应时间
-                await asyncio.sleep(2)
+                await self._wait_for_text(response, 10)
                 text = await response.text()
                 if response.status == 200:
                     try:
@@ -80,6 +81,23 @@ class BilibiliClient:
                         print(f"{e}: something wrong in _try_to_get_audio_url")
                 else:
                     return None
+
+    async def _wait_for_text(self, response, timeout=10):
+        text = await response.text()
+        pattern_audio = r'<script>window.__playinfo__=(.*?)</script>'
+        audio_data = re.findall(pattern_audio, text, re.S)[0]
+        audio_url = json.loads(audio_data)['data'].get('dash').get('audio')[0].get('base_url')
+        # 检查文本内容是否包含预期的文本
+        if "https://xy" in audio_url:
+            return
+        else:
+            time_2_sleep = random.random()
+            await asyncio.sleep(random.random())
+            timeout -= time_2_sleep
+            if timeout > 0:
+                await self._wait_for_text(response, timeout=timeout)
+            else:
+                raise TimeoutError("Expected text not found within specified timeout.")
 
 
 if __name__ == '__main__':
