@@ -22,6 +22,7 @@ Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
 class BilibiliClient:
     def __init__(self):
         self.session = requests.Session()
+        self.cookie_jar = aiohttp.CookieJar(unsafe=True)
 
     async def get_audio_url(self, bvid: str):
         audio_list = AudioBilibiliList()
@@ -38,14 +39,13 @@ class BilibiliClient:
             print(e)
             return None
 
-    @staticmethod
-    async def _try_to_get_audio_url(bvid: str, p: int = 1):
-        url = f"https://www.bilibili.com/video/{bvid}"
+    async def _try_to_get_audio_url(self, bvid: str, p: int = 1):
+        url = f"https://www.bilibili.com/video/{bvid}/"
         param = {
             "p": p,
             "vd_source": "a97ce8f6ce42e3ca9a7f2426d0a483f0"
         }
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(cookie_jar=self.cookie_jar) as session:
             async with session.get(url, params=param, headers=header) as response:
                 text = await response.text()
                 if response.status == 200:
@@ -83,3 +83,5 @@ if __name__ == '__main__':
     client = BilibiliClient()
     print(client.get_audio_url("BV18m411271p"))
     # print(client.get_audio_url("BV1SA41157Nt"))
+    # https://xy111x21x155x92xy.mcdn.bilivideo.cn:4483/upgcxcode/74/16/157261674/157261674-1-30280.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1714197103&gen=playurlv2&os=mcdn&oi=1863459470&trid=00002dea348a23e54e00b2eee6fd6c2a9403u&mid=0&platform=pc&upsig=1d0a35cd0f76b55004f66faf52ed82c0&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&mcdnid=16000546&bvc=vod&nettype=0&orderid=0,3&buvid=BBA99D5B-0FED-80A6-776D-4CA4622A311903462infoc&build=0&f=u_0_0&agrr=0&bw=16572&logo=A0008000
+    # https://xy111x21x155x92xy.mcdn.bilivideo.cn:4483/upgcxcode/74/16/157261674/157261674-1-30280.m4s?e=ig8euxZM2rNcNbdlhoNvNC8BqJIzNbfqXBvEqxTEto8BTrNvN0GvT90W5JZMkX_YN0MvXg8gNEV4NC8xNEV4N03eN0B5tZlqNxTEto8BTrNvNeZVuJ10Kj_g2UB02J0mN0B5tZlqNCNEto8BTrNvNC7MTX502C8f2jmMQJ6mqF2fka1mqx6gqj0eN0B599M=&uipk=5&nbs=1&deadline=1714197172&gen=playurlv2&os=mcdn&oi=1863459527&trid=0000fb53d002ea9c4d65aabd93905462898eu&mid=0&platform=pc&upsig=4bd11a820bb2992e54bb4f856745c0cd&uparams=e,uipk,nbs,deadline,gen,os,oi,trid,mid,platform&mcdnid=16000546&bvc=vod&nettype=0&orderid=0,3&buvid=BBA99D5B-0FED-80A6-776D-4CA4622A311903462infoc&build=0&f=u_0_0&agrr=0&bw=16572&logo=A0008000
