@@ -4,10 +4,10 @@
 import io
 from typing import List
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, BackgroundTasks
 from starlette.responses import RedirectResponse, StreamingResponse
 
-from models.music import Song, SongUrls, SearchedSong, AudioResponse
+from models.music import SongUrls, SearchedSong, AudioResponse, PlayList
 from api.qqmusic import QQMusicClient
 from routers.tools import get_audio_response
 
@@ -46,7 +46,7 @@ def login_check():
 
 @router.get("/songs/search", response_model=AudioResponse)
 def song_search(query: str, num: int = 1):
-    songs = client.search(query, num)
+    songs: SearchedSong | None = client.search(query, num)
     if songs is not None:
         return get_audio_response(code=0, msg='successes!', data=songs)
     else:
@@ -61,7 +61,7 @@ def song_get(song_mid: str):
     :return: data of song
     """
     song_mid = song_mid.split(',')
-    play_urls = client.get_play_url(song_mid=song_mid)
+    play_urls: SongUrls | None = client.get_play_url(song_mid=song_mid)
     if play_urls is not None:
         return get_audio_response(code=0, msg='successes!', data=play_urls)
     else:
@@ -70,7 +70,7 @@ def song_get(song_mid: str):
 
 @router.get("/playlist", response_model=AudioResponse)
 def playlist_get(diss_id: int):
-    playlist = client.get_playlist(diss_id=diss_id)
+    playlist: PlayList | None = client.get_playlist(diss_id=diss_id)
     if playlist is not None:
         return get_audio_response(code=0, msg='successes!', data=playlist)
     else:

@@ -4,7 +4,7 @@
 
 from fastapi import APIRouter, Response
 
-from models.music import AudioResponse
+from models.music import AudioResponse, AudioBilibiliList
 from api.bilibili import BilibiliClient
 from routers.tools import get_audio_response
 
@@ -17,9 +17,9 @@ client = BilibiliClient()
 
 
 @router.get("/audio", response_model=AudioResponse)
-def song_search(bvid: str):
-    bilibili_audio = client.get_audio_url(bvid)
-    if bilibili_audio is not None:
-        return get_audio_response(code=0, msg='成功!', data=bilibili_audio)
+async def song_search(bvid: str):
+    bilibili_audio_list: AudioBilibiliList | None = await client.get_audio_url(bvid)
+    if bilibili_audio_list is not None:
+        return get_audio_response(code=0, msg='成功!', data=bilibili_audio_list)
     else:
-        return get_audio_response(code=-1, msg='失败!', data=bilibili_audio)
+        return get_audio_response(code=-1, msg='失败!', data=bilibili_audio_list)

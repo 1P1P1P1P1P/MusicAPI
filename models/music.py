@@ -57,9 +57,11 @@ class AudioBilibili(BaseModel):
     bilibili音频
     """
     aid: int
+    cid: int
     bvid: str
     audio_url: str
     title: str
+    part: str
     desc: str
     time_public: str
     owner_id: str
@@ -68,10 +70,18 @@ class AudioBilibili(BaseModel):
     pic_url: str
 
 
+class AudioBilibiliList(BaseModel):
+    """
+    bilibili音频列表
+    """
+    list: List[AudioBilibili] = []
+    pages: int = 1
+
+
 class AudioResponse(BaseModel):
     """
     音频响应
     """
     code: int
     msg: str
-    data: AudioBilibili | Song | SearchedSong | SongUrls | PlayList | None = None
+    data: AudioBilibili | Song | SearchedSong | SongUrls | PlayList | AudioBilibiliList | None = None
