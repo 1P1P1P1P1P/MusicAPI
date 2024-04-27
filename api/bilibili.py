@@ -27,6 +27,7 @@ class BilibiliClient:
         audio_list = AudioBilibiliList()
         try:
             first_audio, pages = await self._try_to_get_audio_url(bvid)
+            audio_list.pages = pages
             audio_list.list.append(first_audio)
             if pages > 1:
                 tasks = [self._try_to_get_audio_url(bvid, i) for i in range(2, pages + 1)]
@@ -39,9 +40,10 @@ class BilibiliClient:
 
     @staticmethod
     async def _try_to_get_audio_url(bvid: str, p: int = 1):
-        url = f"https://www.bilibili.com/video/{bvid}/"
+        url = f"https://www.bilibili.com/video/{bvid}"
         param = {
-            "p": p
+            "p": p,
+            "vd_source": "a97ce8f6ce42e3ca9a7f2426d0a483f0"
         }
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=param, headers=header) as response:
@@ -79,5 +81,5 @@ class BilibiliClient:
 
 if __name__ == '__main__':
     client = BilibiliClient()
-    print(client.get_audio_url("BV1c7411N7Qb"))
-    # print(client.get_audio_url("BV1SA41157Nt", 1))
+    print(client.get_audio_url("BV18m411271p"))
+    # print(client.get_audio_url("BV1SA41157Nt"))
